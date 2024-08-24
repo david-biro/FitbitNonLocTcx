@@ -94,8 +94,9 @@ func readCredFile() {
 		ClientID:     apiCred.CId,
 		ClientSecret: apiCred.CSecret,
 		RedirectURL:  apiCred.RedirectURL,
-		Scopes:       []string{"activity", "cardio_fitness", "electrocardiogram", "heartrate", "location", "nutrition", "oxygen_saturation", "profile", "respiratory_rate", "settings", "sleep", "social", "temperature", "weight"},
-		Endpoint:     fitbit.Endpoint,
+		Scopes:       []string{"activity", "heartrate", "location", "profile"}, // only request what is really needed
+		//"activity", "cardio_fitness", "electrocardiogram", "heartrate", "location", "nutrition", "oxygen_saturation", "profile", "respiratory_rate", "settings", "sleep", "social", "temperature", "weight"
+		Endpoint: fitbit.Endpoint,
 	}
 
 	fmt.Println("Reading JSON query file finished.")
