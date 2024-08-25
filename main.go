@@ -119,11 +119,11 @@ func generateCodeVerifier() string {
 	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(codeVerifier)
 }
 
-// Generates a random 32 character length string for "state"
+// Generates a random 32 character length string for "state", https://go.dev/play/p/Lwnd5B7VYIL
 func generateRandomString() string {
 	charset := "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	result := make([]byte, 32)
-	max := big.NewInt(32)
+	max := big.NewInt(int64(len(charset)))
 
 	for i := 0; i < 32; i++ {
 		n, err := rand.Int(rand.Reader, max)
@@ -132,7 +132,7 @@ func generateRandomString() string {
 		}
 		result[i] = charset[n.Int64()]
 	}
-	stateAuth = string(result) // Store it for later compare
+	stateAuth = string(result) // Store it for later comparison
 	return stateAuth
 }
 
