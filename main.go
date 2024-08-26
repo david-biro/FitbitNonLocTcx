@@ -89,14 +89,18 @@ func readCredFile() {
 		log.Fatalf("Failed to unmarshal JSON: %s", err)
 	}
 
-	// OAuth2 Config setup
-	oauth2Config = &oauth2.Config{
-		ClientID:     apiCred.CId,
-		ClientSecret: apiCred.CSecret,
-		RedirectURL:  apiCred.RedirectURL,
-		Scopes:       []string{"activity", "heartrate", "location", "profile"}, // only request what is really needed
-		//"activity", "cardio_fitness", "electrocardiogram", "heartrate", "location", "nutrition", "oxygen_saturation", "profile", "respiratory_rate", "settings", "sleep", "social", "temperature", "weight"
-		Endpoint: fitbit.Endpoint,
+	if (apiCred.CId != "") && (apiCred.RedirectURL != "") {
+		// OAuth2 Config setup
+		oauth2Config = &oauth2.Config{
+			ClientID:     apiCred.CId,
+			ClientSecret: apiCred.CSecret,
+			RedirectURL:  apiCred.RedirectURL,
+			Scopes:       []string{"activity", "heartrate", "location", "profile"}, // only request what is really needed
+			//"activity", "cardio_fitness", "electrocardiogram", "heartrate", "location", "nutrition", "oxygen_saturation", "profile", "respiratory_rate", "settings", "sleep", "social", "temperature", "weight"
+			Endpoint: fitbit.Endpoint,
+		}
+	} else {
+		log.Fatal("The clientID and redirect URL cannot be empty.")
 	}
 
 	fmt.Println("Reading JSON query file finished.")
@@ -222,80 +226,90 @@ func handleTokenReceived(w http.ResponseWriter, r *http.Request) {
 // Fetches activity data using the access token, JSON
 func fetchActivityData() {
 	fmt.Println("Fetching activity data...")
-	arg := os.Args[1]
 
-	url := "https://api.fitbit.com/1/user/-/activities/date/" + arg + ".json"
+	if len(os.Args) == 2 {
+		arg := os.Args[1]
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		log.Fatalf("Failed to create request: %v", err)
+		url := "https://api.fitbit.com/1/user/-/activities/date/" + arg + ".json"
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			log.Fatalf("Failed to create request: %v", err)
+		}
+		req.Header.Add("Authorization", "Bearer "+token)
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("Failed to fetch activity data: %v", err)
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatalf("Failed to read response body: %v", err)
+		}
+
+		var prettyJson bytes.Buffer
+		error := json.Indent(&prettyJson, body, "", "\t")
+		if error != nil {
+			log.Println("JSON parse error: ", error)
+			return
+		}
+		fmt.Println("Activity Data:", prettyJson.String())
+
+		// Unmarshal the JSON into the Activities struct
+		var activities data.Activities
+		err = json.Unmarshal(body, &activities)
+		if err != nil {
+			log.Fatalf("Failed to unmarshal JSON: %v", err)
+		}
+
+		// Display the list of activities with their index
+		fmt.Println("Available Activities:")
+		for i, activity := range activities.Activities {
+			fmt.Printf("ID: %d\n", i+1)
+			fmt.Printf("Activity Name: %s\n", activity.Name)
+			fmt.Printf("Distance: %.2f\n", activity.Distance)
+			fmt.Printf("Start date: %s\n", activity.StartDate+" "+activity.StartTime)
+			fmt.Println("-------------")
+		}
+
+		// Prompt the user to choose an activity
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter the number of the activity you want to choose: ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			log.Fatalf("Failed to read input: %v", err)
+		}
+
+		input = strings.TrimSpace(input)
+		choice, err := strconv.Atoi(input)
+		if err != nil || choice < 1 || choice > len(activities.Activities) {
+			fmt.Println("Invalid choice. Please enter a valid number.")
+			return
+		}
+
+		chosenActivity := activities.Activities[choice-1]
+		fmt.Println("You selected: " + strconv.Itoa(choice) + " " + chosenActivity.ActivityParentName + " " + chosenActivity.StartDate + " " + chosenActivity.StartTime)
+		fileNameToSave := chosenActivity.ActivityParentName + "-" + strconv.FormatInt(chosenActivity.LogID, 10)
+
+		// for debug purposes save all activity on that day
+		// saveToFile("All-"+arg+".json", prettyJson.Bytes())
+
+		xml := getActivityTcx(chosenActivity.LogID)
+
+		injectActivityTcx(fileNameToSave, xml, chosenActivity.ActivityParentName, time.Duration(chosenActivity.Duration/1000)*time.Second,
+			strconv.FormatFloat(chosenActivity.Distance*1000.0, 'f', -1, 64), strconv.Itoa(chosenActivity.Calories))
+		// FormatFloat(f: output fixed point, -1: precision automatically det, 64: input is float 64)
+
+	} else if len(os.Args) < 2 {
+		log.Fatalf("No date specified. Give a date in a format YYYY-MM-DD!")
+
+	} else {
+		log.Fatalf("Maximum of one date can be given in a format YYYY-MM-DD.")
 	}
-	req.Header.Add("Authorization", "Bearer "+token)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatalf("Failed to fetch activity data: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
-	}
-
-	var prettyJson bytes.Buffer
-	error := json.Indent(&prettyJson, body, "", "\t")
-	if error != nil {
-		log.Println("JSON parse error: ", error)
-		return
-	}
-	fmt.Println("Activity Data:", prettyJson.String())
-
-	// Unmarshal the JSON into the Activities struct
-	var activities data.Activities
-	err = json.Unmarshal(body, &activities)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal JSON: %v", err)
-	}
-
-	// Display the list of activities with their index
-	fmt.Println("Available Activities:")
-	for i, activity := range activities.Activities {
-		fmt.Printf("ID: %d\n", i+1)
-		fmt.Printf("Activity Name: %s\n", activity.Name)
-		fmt.Printf("Distance: %.2f\n", activity.Distance)
-		fmt.Printf("Start date: %s\n", activity.StartDate+" "+activity.StartTime)
-		fmt.Println("-------------")
-	}
-
-	// Prompt the user to choose an activity
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter the number of the activity you want to choose: ")
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		log.Fatalf("Failed to read input: %v", err)
-	}
-
-	input = strings.TrimSpace(input)
-	choice, err := strconv.Atoi(input)
-	if err != nil || choice < 1 || choice > len(activities.Activities) {
-		fmt.Println("Invalid choice. Please enter a valid number.")
-		return
-	}
-
-	chosenActivity := activities.Activities[choice-1]
-	fmt.Println("You selected: " + strconv.Itoa(choice) + " " + chosenActivity.ActivityParentName + " " + chosenActivity.StartDate + " " + chosenActivity.StartTime)
-	fileNameToSave := chosenActivity.ActivityParentName + "-" + strconv.FormatInt(chosenActivity.LogID, 10)
-
-	// for debug purposes save all activity on that day
-	// saveToFile("All-"+arg+".json", prettyJson.Bytes())
-
-	xml := getActivityTcx(chosenActivity.LogID)
-
-	injectActivityTcx(fileNameToSave, xml, chosenActivity.ActivityParentName, time.Duration(chosenActivity.Duration/1000)*time.Second,
-		strconv.FormatFloat(chosenActivity.Distance*1000.0, 'f', -1, 64), strconv.Itoa(chosenActivity.Calories))
-	// FormatFloat(f: output fixed point, -1: precision automatically det, 64: input is float 64)
 }
 
 // Dumps the "data" byte slice into a file
@@ -404,7 +418,6 @@ func injectActivityTcx(fName string, xmlDoc *etree.Document, actName string, tot
 	}
 	fmt.Println(string(xmlString))
 	saveToFile(fName+".tcx", []byte(xmlString))
-
 	// Shut down server
 	go func() {
 		if err := server.Shutdown(context.Background()); err != nil {
