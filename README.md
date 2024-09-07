@@ -22,6 +22,7 @@ FitbitNonLocTcx
 ├── go.mod                  
 ├── go.sum                  
 ├── main.go
+├── main_test.go
 └── README.md
 ```
 
