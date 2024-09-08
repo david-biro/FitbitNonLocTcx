@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
@@ -136,6 +137,67 @@ func TestReadCredFile(t *testing.T) {
 		} else {
 			assert.Error(t, err)
 			assert.EqualError(t, err, tc.expectedErr.Error())
+		}
+	}
+}
+
+func TestConvertTimestamp(t *testing.T) {
+	testTimestamps := []struct {
+		testName       string
+		timeStamp      string
+		addSecond      time.Duration
+		expectedValue  string
+		expectedErr    error
+		expectedResult bool
+	}{
+		{
+			testName:       "Valid RFC3339 timestamp with no added seconds",
+			timeStamp:      "2024-09-07T10:00:00Z",
+			addSecond:      0 * time.Second,
+			expectedValue:  "2024-09-07T10:00:00Z",
+			expectedResult: false,
+		},
+		{
+			testName:       "Valid RFC3339 timestamp with 30 seconds added",
+			timeStamp:      "2024-09-07T10:00:00Z",
+			addSecond:      30 * time.Second,
+			expectedValue:  "2024-09-07T10:00:30Z",
+			expectedResult: false,
+		},
+		{
+			testName:       "Valid RFC3339 timestamp with negative duration",
+			timeStamp:      "2024-09-07T10:00:00Z",
+			addSecond:      -30 * time.Second,
+			expectedValue:  "2024-09-07T09:59:30Z",
+			expectedResult: false,
+		},
+		{
+			testName:       "Empty RFC3339 timestamp",
+			timeStamp:      "",
+			addSecond:      0 * time.Second,
+			expectedErr:    &time.ParseError{},
+			expectedResult: true,
+		},
+		{
+			testName:       "Invalid RFC3339 timestamp",
+			timeStamp:      "2006-01-02T15:04:05Z07:00",
+			addSecond:      0 * time.Second,
+			expectedErr:    &time.ParseError{},
+			expectedResult: true,
+		},
+	}
+
+	for _, tc := range testTimestamps {
+
+		result, err := convertTimestamp(tc.timeStamp, tc.addSecond)
+
+		if tc.expectedResult {
+			// If an error is expected, check if the error matches the expected error (time.ParseError)
+			assert.Error(t, err)
+			assert.IsType(t, tc.expectedErr, err)
+		} else {
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedValue, result)
 		}
 	}
 }
