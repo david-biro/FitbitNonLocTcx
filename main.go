@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -114,7 +113,7 @@ func readCredFile(reader io.Reader) (*oauth2.Config, error) {
 // Generates a code challenge from the code verifier
 func generateCodeChallenge(codeVerifier string) (string, error) {
 	if codeVerifier == "" {
-		return "", errors.New("empty codeVerifier string")
+		return "", fmt.Errorf("error: empty codeVerifier string")
 	}
 	hash := sha256.Sum256([]byte(codeVerifier))
 	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:]), nil

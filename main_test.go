@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -199,5 +201,64 @@ func TestConvertTimestamp(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedValue, result)
 		}
+	}
+}
+
+func TestGenerateCodeChallenge(t *testing.T) {
+	tcTwoVerifier := "testverifier"
+	expectedHashTcTwo := sha256.Sum256([]byte(tcTwoVerifier))
+	expectedChallenge := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(expectedHashTcTwo[:])
+
+	testCodeChallenges := []struct {
+		testName       string
+		codeVerifier   string
+		expectedValue  string
+		expectedErr    error
+		expectedResult bool
+	}{
+		{
+			testName:       "FAILURE - test case 1, empty codeVerifier string",
+			codeVerifier:   "",
+			expectedValue:  "",
+			expectedErr:    fmt.Errorf("error: empty codeVerifier string"),
+			expectedResult: false,
+		},
+		{
+			testName:       "SUCCESS - test case 2, use a known codeVerifier",
+			codeVerifier:   "testverifier",
+			expectedValue:  expectedChallenge,
+			expectedErr:    nil,
+			expectedResult: true,
+		},
+	}
+
+	for _, tc := range testCodeChallenges {
+		result, err := generateCodeChallenge(tc.codeVerifier)
+		if tc.expectedResult {
+			assert.True(t, reflect.DeepEqual(tc.expectedValue, result))
+			assert.Nil(t, err)
+		} else {
+			assert.Error(t, err)
+			assert.EqualError(t, err, tc.expectedErr.Error())
+		}
+	}
+}
+
+func TestGenerateCodeVerifier(t *testing.T) {
+	verifier, err := generateCodeVerifier()
+	handleVerifierTestError(t, err)
+
+	_, err = base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(verifier)
+	if err != nil {
+		t.Errorf("Code verifier is not a valid base64 URL encoded string: %v", err)
+	}
+}
+
+// Error handler specific to the test
+func handleVerifierTestError(t *testing.T, err error) {
+
+	if err != nil {
+		assert.Error(t, err)
+		t.Errorf("Unexpected error: %v", err)
 	}
 }
