@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -260,5 +261,98 @@ func handleVerifierTestError(t *testing.T, err error) {
 	if err != nil {
 		assert.Error(t, err)
 		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestGetAuthURL(t *testing.T) {
+	testClientID := "test-client-id"
+	testRedirectURL := "https://test.com/redirect"
+	testCodeChallenge := "testCodeChallenge"
+
+	testCases := []struct {
+		testName       string
+		oauthCfg       *oauth2.Config
+		codeChallenge  string
+		expectedResult string
+	}{
+		{
+			testName: "SUCCESS - Valid OAuth Config and Code Challenge",
+			oauthCfg: &oauth2.Config{
+				ClientID:    testClientID,
+				RedirectURL: testRedirectURL,
+				Scopes:      []string{"activity", "heartrate", "profile"},
+			},
+			codeChallenge: testCodeChallenge,
+			expectedResult: "https://www.fitbit.com/oauth2/authorize?response_type=token" +
+				"&client_id=test-client-id" +
+				"&redirect_uri=https%3A%2F%2Ftest.com%2Fredirect" +
+				"&scope=activity+heartrate+profile" +
+				"&code_challenge=testCodeChallenge" +
+				"&code_challenge_method=S256" +
+				"&state=",
+		},
+		{
+			testName:      "FAILURE - Empty Code Challenge",
+			oauthCfg:      &oauth2.Config{ClientID: testClientID, RedirectURL: testRedirectURL, Scopes: []string{"activity"}},
+			codeChallenge: "",
+			expectedResult: "https://www.fitbit.com/oauth2/authorize?response_type=token" +
+				"&client_id=test-client-id" +
+				"&redirect_uri=https%3A%2F%2Ftest.com%2Fredirect" +
+				"&scope=activity" +
+				"&code_challenge=" +
+				"&code_challenge_method=S256" +
+				"&state=",
+		},
+		{
+			testName: "FAILURE - Empty ClientID",
+			oauthCfg: &oauth2.Config{
+				ClientID:    "",
+				RedirectURL: testRedirectURL,
+				Scopes:      []string{"profile"},
+			},
+			codeChallenge: testCodeChallenge,
+			expectedResult: "https://www.fitbit.com/oauth2/authorize?response_type=token" +
+				"&client_id=" +
+				"&redirect_uri=https%3A%2F%2Ftest.com%2Fredirect" +
+				"&scope=profile" +
+				"&code_challenge=testCodeChallenge" +
+				"&code_challenge_method=S256" +
+				"&state=",
+		},
+		{
+			testName: "FAILURE - Empty Redirect URL",
+			oauthCfg: &oauth2.Config{
+				ClientID:    testClientID,
+				RedirectURL: "",
+				Scopes:      []string{"heartrate"},
+			},
+			codeChallenge: testCodeChallenge,
+			expectedResult: "https://www.fitbit.com/oauth2/authorize?response_type=token" +
+				"&client_id=test-client-id" +
+				"&redirect_uri=" +
+				"&scope=heartrate" +
+				"&code_challenge=testCodeChallenge" +
+				"&code_challenge_method=S256" +
+				"&state=",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			actualResult := getAuthURL(tc.codeChallenge, tc.oauthCfg)
+
+			parsedExpectedURL, _ := url.Parse(tc.expectedResult)
+			parsedActualURL, _ := url.Parse(actualResult)
+
+			expectedQueryParams := parsedExpectedURL.Query()
+			actualQueryParams := parsedActualURL.Query()
+
+			for key, expectedValue := range expectedQueryParams {
+				if key != "state" {
+					actualValue := actualQueryParams[key]
+					assert.True(t, reflect.DeepEqual(expectedValue, actualValue), "Mismatch in query param: "+key)
+				}
+			}
+		})
 	}
 }
