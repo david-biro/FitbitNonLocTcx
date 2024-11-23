@@ -33,7 +33,6 @@ FitbitNonLocTcx
  Example:  
  ```
  go run main.go 2024-08-11
- go run main.go today
  ```
 
  The first time, a browser window will pop up asking you to log in to your Fitbit account, and it will then display Fitbit's authorization webpage. After granting permissions, you can close the browser window. Then, on the console, select the activity you want to save in TCX format.
