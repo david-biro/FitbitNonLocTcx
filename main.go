@@ -185,7 +185,7 @@ func openBrowser(url string) error {
 func handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	// Construct a simple HTML page with JavaScript to extract the access token
 	html := `
-<html>
+	<html>
 		<body>
 			<script type="text/javascript">
 				var fragmentString = window.location.hash.substr(1);
@@ -221,7 +221,7 @@ func handleTokenReceived(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Token received and printed to the server console."))
 		if strings.Compare(stateAuth, stateRedir) == 0 {
 			w.Write([]byte("State matches with the one sent in auth URL."))
-			fetchActivityData()
+			fetchActivityData(os.Args)
 		} else {
 			w.Write([]byte("The redirect request not originated from this app."))
 		}
@@ -231,13 +231,12 @@ func handleTokenReceived(w http.ResponseWriter, r *http.Request) {
 }
 
 // Fetches activity data using the access token, JSON
-func fetchActivityData() {
+func fetchActivityData(args []string) {
 	fmt.Println("Fetching activity data...")
 
-	if len(os.Args) == 2 {
-		arg := os.Args[1]
+	if len(args) == 2 {
 
-		url := "https://api.fitbit.com/1/user/-/activities/date/" + arg + ".json"
+		url := "https://api.fitbit.com/1/user/-/activities/date/" + args[1] + ".json"
 
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
@@ -302,7 +301,7 @@ func fetchActivityData() {
 		fileNameToSave := chosenActivity.ActivityParentName + "-" + strconv.FormatInt(chosenActivity.LogID, 10)
 
 		// for debug purposes save all activity on that day
-		// saveToFile("All-"+arg+".json", prettyJson.Bytes())
+		// saveToFile("All-"+args[1]+".json", prettyJson.Bytes())
 
 		xml := getActivityTcx(chosenActivity.LogID)
 
@@ -310,9 +309,8 @@ func fetchActivityData() {
 			strconv.FormatFloat(chosenActivity.Distance*1000.0, 'f', -1, 64), strconv.Itoa(chosenActivity.Calories))
 		// FormatFloat(f: output fixed point, -1: precision automatically det, 64: input is float 64)
 
-	} else if len(os.Args) < 2 {
+	} else if len(args) < 2 {
 		log.Fatalf("No date specified. Give a date in a format YYYY-MM-DD!")
-
 	} else {
 		log.Fatalf("Maximum of one date can be given in a format YYYY-MM-DD.")
 	}
