@@ -48,7 +48,7 @@ func main() {
 	defer jsonFile.Close()
 	ouathCfg, err := readCredFile(jsonFile)
 	handleError(err)
-	codeVerifier, err = generateCodeVerifier()
+	codeVerifier, err = generateCodeVerifier(43)
 	handleError(err)
 	codeChallenge, err = generateCodeChallenge(codeVerifier)
 	handleError(err)
@@ -119,8 +119,9 @@ func generateCodeChallenge(codeVerifier string) (string, error) {
 	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:]), nil
 }
 
-// Generatse a random code verifier
-func generateCodeVerifier() (string, error) {
+// Generates a random code verifier (need to change to use unreserved characters, RFC3986)
+/*func generateCodeVerifier() (string, error) {
+
 	cv := make([]byte, 43) // verifier length = 43
 	_, err := rand.Read(cv)
 	if err != nil {
@@ -128,6 +129,24 @@ func generateCodeVerifier() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(cv), nil
+}*/
+
+// Generates a random code verifier accroding to RFC 7636 RFC3986
+func generateCodeVerifier(length int) (string, error) {
+	const rfc3986Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+	if length < 43 || length > 128 {
+		return "", fmt.Errorf("code verifier length must be between 43 and 128 characters")
+	}
+
+	verifier := make([]byte, length)
+	for i := range verifier {
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(rfc3986Chars))))
+		if err != nil {
+			return "", err
+		}
+		verifier[i] = rfc3986Chars[index.Int64()]
+	}
+	return string(verifier), nil
 }
 
 // Generates a random 32 character length string for "state", https://go.dev/play/p/Lwnd5B7VYIL
