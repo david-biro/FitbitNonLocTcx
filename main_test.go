@@ -246,21 +246,33 @@ func TestGenerateCodeChallenge(t *testing.T) {
 }
 
 func TestGenerateCodeVerifier(t *testing.T) {
-	verifier, err := generateCodeVerifier()
-	handleVerifierTestError(t, err)
-
-	_, err = base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(verifier)
-	if err != nil {
-		t.Errorf("Code verifier is not a valid base64 URL encoded string: %v", err)
+	cases := []struct {
+		length      int
+		expectError bool
+	}{
+		{42, true},   // Shorter than minimum
+		{43, false},  // Minimum valid length
+		{128, false}, // Maximum valid length
+		{129, true},  // Longer than maximum
 	}
-}
 
-// Error handler specific to the test
-func handleVerifierTestError(t *testing.T, err error) {
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("Test case with length=%d", c.length), func(t *testing.T) {
+			verifier, err := generateCodeVerifier(c.length)
 
-	if err != nil {
-		assert.Error(t, err)
-		t.Errorf("Unexpected error: %v", err)
+			if c.expectError {
+				if err == nil {
+					t.Errorf("Expected error for length %d, got none", c.length)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Did not expect error for length %d, got: %v", c.length, err)
+				}
+				if len(verifier) != c.length {
+					t.Errorf("Expected verifier of length %d, got %d", c.length, len(verifier))
+				}
+			}
+		})
 	}
 }
 
